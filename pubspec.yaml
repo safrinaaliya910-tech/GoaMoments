@@ -1,0 +1,41 @@
+name: goa_moments
+description: "A new Flutter project."
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  
+  # Premium App Dependencies
+  supabase_flutter: ^2.8.0
+  provider: ^6.1.2
+  flutter_secure_storage: ^9.2.2
+  geolocator: ^13.0.2
+  device_info_plus: ^10.1.2
+  screen_protector: ^1.5.2
+  shimmer: ^3.0.0
+  google_fonts: ^6.2.1
+  flutter_dotenv: ^5.2.1
+  qr_flutter: ^4.1.0
+  video_player: ^2.8.6
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/goa_moments_logo.png
+    - assets/images/goa_tourism.png
+    - assets/videos/goa.mp4
