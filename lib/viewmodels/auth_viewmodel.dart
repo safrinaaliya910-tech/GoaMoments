@@ -67,7 +67,7 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   // =====================================================================
-  // NEW: SUPABASE EMAIL OTP INTEGRATION
+  // SUPABASE EMAIL OTP INTEGRATION
   // =====================================================================
 
   /// Sends a 6-digit OTP to the provided email address
@@ -171,25 +171,43 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Updates profile metadata
+  /// Updates profile metadata (NOW CONNECTED TO SUPABASE)
   Future<bool> updateProfile({required String name, required String email, required String phone}) async {
     if (_currentMember == null) return false;
     _isLoading = true;
     notifyListeners();
 
-    final updated = _currentMember!.copyWith(
-      name: name,
-      email: email,
-      phone: phone,
-    );
+    try {
+      // 1. Update Supabase Database directly first
+      if (!_isDemoMode) {
+        await Supabase.instance.client.from('memberships').update({
+          'member_name': name,
+          'email': email,
+          'phone_number': phone,
+        }).eq('id', _currentMember!.id);
+      }
 
-    final success = await _memberRepository.updateMemberProfile(updated, isDemoMode: _isDemoMode);
-    if (success) {
-      _currentMember = updated;
+      // 2. Update local state
+      final updated = _currentMember!.copyWith(
+        name: name,
+        email: email,
+        phone: phone,
+      );
+
+      // 3. Keep local repository in sync
+      final success = await _memberRepository.updateMemberProfile(updated, isDemoMode: _isDemoMode);
+      if (success) {
+        _currentMember = updated;
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return success;
+    } catch (e) {
+      debugPrint('Profile Update Error: $e');
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
-
-    _isLoading = false;
-    notifyListeners();
-    return success;
   }
 }

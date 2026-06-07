@@ -44,6 +44,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    
+    // Call the database update function
     final success = await authVM.updateProfile(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
@@ -214,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 18),
                           Text(
-                            member.name.toUpperCase(),
+                            member.name.isEmpty ? "MEMBER" : member.name.toUpperCase(),
                             style: GoogleFonts.cormorantGaramond(
                               color: Colors.white,
                               fontSize: 22,

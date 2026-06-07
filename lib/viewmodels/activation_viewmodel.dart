@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // ADDED FOR DATABASE UPDATE
 import '../models/member_model.dart';
 import '../repositories/member_repository.dart';
 import '../repositories/activation_repository.dart';
@@ -63,9 +64,10 @@ class ActivationViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// STAGE 1: Verify Membership Details
+  /// STAGE 1: Verify Membership Details (NOW SAVES NAME TO SUPABASE)
   Future<bool> verifyMemberDetails({
     required String membershipId,
+    required String name, // ADDED NAME PARAMETER
     required String email,
     required String phone,
     bool isDemoMode = true,
@@ -96,7 +98,16 @@ class ActivationViewModel extends ChangeNotifier {
         return false;
       }
 
-      _verifiedMember = member;
+      // 1. Save the new Name to Supabase immediately upon verification
+      if (!isDemoMode) {
+        await Supabase.instance.client.from('memberships').update({
+          'member_name': name,
+        }).eq('membership_id', membershipId);
+      }
+
+      // 2. Update our local verified member with the new name so it shows in the UI
+      _verifiedMember = member.copyWith(name: name);
+      
       _isLoading = false;
       notifyListeners();
       return true;

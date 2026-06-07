@@ -18,12 +18,14 @@ class MembershipActivationScreen extends StatefulWidget {
 class _MembershipActivationScreenState extends State<MembershipActivationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _idController = TextEditingController();
+  final _nameController = TextEditingController(); // ADDED: Name Controller
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
 
   @override
   void dispose() {
     _idController.dispose();
+    _nameController.dispose(); // ADDED: Dispose Name Controller
     _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
@@ -55,9 +57,10 @@ class _MembershipActivationScreenState extends State<MembershipActivationScreen>
     final activationVM = Provider.of<ActivationViewModel>(context, listen: false);
     final authVM = Provider.of<AuthViewModel>(context, listen: false);
 
-    // Verify details
+    // Verify details - Now including name!
     final isValid = await activationVM.verifyMemberDetails(
       membershipId: _idController.text.trim(),
+      name: _nameController.text.trim(), // ADDED: Passing the name to ViewModel
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       isDemoMode: authVM.isDemoMode,
@@ -141,6 +144,21 @@ class _MembershipActivationScreenState extends State<MembershipActivationScreen>
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
                                   return 'Membership ID is required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ADDED: Member Name Text Field
+                          _buildTextField(
+                            controller: _nameController,
+                            label: 'MEMBER NAME',
+                            hint: 'e.g. Safrin',
+                            icon: Icons.person_outline,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Name is required';
                               }
                               return null;
                             },
