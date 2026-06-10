@@ -22,7 +22,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   void initState() {
     super.initState();
 
-    // Only keep the background pulsing luxury glow
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -51,27 +50,19 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     final authVM = Provider.of<AuthViewModel>(context, listen: false);
 
-    await authVM.tryAutoLogin(
-      supabaseService.isDemoMode,
-    );
-
-    // Displays the unified splash screen for exactly 5.5 seconds
-    await Future.delayed(
-      const Duration(milliseconds: 5500),
-    );
+    // OPTIMIZATION: Run the auto-login check AND the 5.5s timer at the exact same time
+    await Future.wait([
+      authVM.tryAutoLogin(supabaseService.isDemoMode),
+      Future.delayed(const Duration(milliseconds: 5500)),
+    ]);
 
     if (!mounted) return;
 
+    // The Ultimate Check: If they are remembered, skip Welcome entirely!
     if (authVM.isAuthenticated) {
-      Navigator.pushReplacementNamed(
-        context,
-        '/dashboard',
-      );
+      Navigator.pushReplacementNamed(context, '/dashboard'); // Or '/profile'
     } else {
-      Navigator.pushReplacementNamed(
-        context,
-        '/welcome',
-      );
+      Navigator.pushReplacementNamed(context, '/welcome');
     }
   }
 
@@ -81,7 +72,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.dispose();
   }
 
-  // Logo now appears instantly with the rest of the screen
   Widget buildCenterLogo() {
     return Image.asset(
       'assets/images/goa_moments_logo.png',
@@ -134,17 +124,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   Widget buildPartnerSection() {
     return Padding(
-      padding: const EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: 30,
-      ),
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 30),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.45),
           borderRadius: BorderRadius.circular(18),
@@ -236,7 +219,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         glowPositions: const [Alignment.center],
         child: Stack(
           children: [
-            // Background pulsing glow
             Positioned.fill(
               child: Center(
                 child: AnimatedBuilder(
@@ -265,8 +247,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                 ),
               ),
             ),
-            
-            // Foreground Content (Appears instantly)
             SafeArea(
               child: Column(
                 children: [

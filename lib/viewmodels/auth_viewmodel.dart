@@ -12,7 +12,8 @@ class AuthViewModel extends ChangeNotifier {
 
   MemberModel? _currentMember;
   bool _isLoading = false;
-  bool _isDemoMode = true;
+  
+  bool _isDemoMode = false; 
 
   MemberModel? get currentMember => _currentMember;
   bool get isLoading => _isLoading;
@@ -21,66 +22,49 @@ class AuthViewModel extends ChangeNotifier {
 
   AuthViewModel(this._memberRepository);
 
-  /// Check Supabase native session and local storage to auto-login
-  Future<void> tryAutoLogin(bool isDemoMode) async {
-    _isDemoMode = isDemoMode;
+  Future<void> tryAutoLogin(bool isDemoModeParam) async {
+    _isDemoMode = isDemoModeParam; 
     _isLoading = true;
     notifyListeners();
 
     try {
-      if (!_isDemoMode) {
-        // 1. Check if Supabase already holds a valid, encrypted session
-        final session = _supabaseService.auth.currentSession;
-        
-        if (session != null) {
-          // If Supabase says we are logged in, grab the local member ID to fetch profile
-          final savedMemberId = await _secureStorage.read(key: 'auth_member_id');
-          if (savedMemberId != null) {
-            await _loadMemberProfile(savedMemberId);
-          }
-        } else {
-          await clearSession();
-        }
+      final savedMemberId = await _secureStorage.read(key: 'auth_member_id');
+      
+      if (savedMemberId != null) {
+        debugPrint("🟢 AUTO-LOGIN: Found saved ID $savedMemberId. Fetching profile...");
+        await _loadMemberProfile(savedMemberId);
       } else {
-        // 2. DEMO MODE LOGIC (Your existing offline logic)
-        final savedMemberId = await _secureStorage.read(key: 'auth_member_id');
-        if (savedMemberId != null) {
-          await _loadMemberProfile(savedMemberId);
-        }
+        debugPrint("ℹ️ AUTO-LOGIN: No saved session found.");
+        await clearSession();
       }
     } catch (e) {
       debugPrint('Auto-login error: $e');
+      await clearSession();
     }
 
     _isLoading = false;
     notifyListeners();
   }
 
-  /// Helper to fetch the member from repository and validate status
   Future<void> _loadMemberProfile(String memberId) async {
-    final member = await _memberRepository.getMemberById(memberId, isDemoMode: _isDemoMode);
+    final member = await _memberRepository.getMemberById(memberId, isDemoMode: false);
     if (member != null && member.status == 'active') {
       _currentMember = member;
+      debugPrint("✅ PROFILE LOADED: Welcome back, ${member.name}");
     } else {
-      await clearSession(); // Member suspended or not found
+      debugPrint("🔴 PROFILE LOAD FAILED: Member not found or not active.");
+      await clearSession(); 
     }
   }
 
-  // =====================================================================
-  // SUPABASE EMAIL OTP INTEGRATION
-  // =====================================================================
-
-  /// Sends a 6-digit OTP to the provided email address
   Future<bool> sendEmailOTP(String email) async {
-    if (_isDemoMode) return true; // Pretend it worked in demo mode
-    
     _isLoading = true;
     notifyListeners();
 
     try {
       await _supabaseService.auth.signInWithOtp(
         email: email,
-        shouldCreateUser: true, // Creates a new user if they don't exist yet
+        shouldCreateUser: true,
       );
       _isLoading = false;
       notifyListeners();
@@ -93,17 +77,7 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Verifies the 6-digit OTP entered by the user
   Future<bool> verifyEmailOTP(String email, String otp, MemberModel verifiedMember) async {
-    if (_isDemoMode) {
-      // Offline Demo: Just set the session if OTP is '123456'
-      if (otp == '123456') {
-        await setSession(verifiedMember);
-        return true;
-      }
-      return false;
-    }
-
     _isLoading = true;
     notifyListeners();
 
@@ -115,7 +89,6 @@ class AuthViewModel extends ChangeNotifier {
       );
 
       if (res.session != null) {
-        // OTP was correct and Supabase generated a secure session!
         await setSession(verifiedMember);
         _isLoading = false;
         notifyListeners();
@@ -133,69 +106,57 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  // =====================================================================
-
-  /// Sets the logged-in member session securely
   Future<void> setSession(MemberModel member) async {
     _currentMember = member;
     await _secureStorage.write(key: 'auth_member_id', value: member.id);
     await _secureStorage.write(key: 'auth_login_time', value: DateTime.now().toIso8601String());
+    debugPrint("✅ SESSION SECURED: ${member.id} is now logged in persistently.");
     notifyListeners();
   }
 
-  /// Clear session securely (Logout)
   Future<void> clearSession() async {
     _currentMember = null;
     await _secureStorage.delete(key: 'auth_member_id');
     await _secureStorage.delete(key: 'auth_login_time');
     
-    // Also sign out of Supabase
-    if (!_isDemoMode) {
-      try {
-        await _supabaseService.auth.signOut();
-      } catch (e) {
-        debugPrint('Supabase SignOut Error: $e');
-      }
+    try {
+      await _supabaseService.auth.signOut();
+    } catch (e) {
+      debugPrint('Supabase SignOut Error: $e');
     }
     
+    debugPrint("🔴 SESSION CLEARED: User logged out.");
     notifyListeners();
   }
 
-  /// Force refresh profile data
   Future<void> refreshProfile() async {
     if (_currentMember == null) return;
-    final updated = await _memberRepository.getMemberById(_currentMember!.id, isDemoMode: _isDemoMode);
+    final updated = await _memberRepository.getMemberById(_currentMember!.id, isDemoMode: false);
     if (updated != null) {
       _currentMember = updated;
       notifyListeners();
     }
   }
 
-  /// Updates profile metadata (NOW CONNECTED TO SUPABASE)
   Future<bool> updateProfile({required String name, required String email, required String phone}) async {
     if (_currentMember == null) return false;
     _isLoading = true;
     notifyListeners();
 
     try {
-      // 1. Update Supabase Database directly first
-      if (!_isDemoMode) {
-        await Supabase.instance.client.from('memberships').update({
-          'member_name': name,
-          'email': email,
-          'phone_number': phone,
-        }).eq('id', _currentMember!.id);
-      }
+      await Supabase.instance.client.from('memberships').update({
+        'member_name': name,
+        'email': email,
+        'phone_number': phone,
+      }).eq('membership_id', _currentMember!.id); 
 
-      // 2. Update local state
       final updated = _currentMember!.copyWith(
         name: name,
         email: email,
         phone: phone,
       );
 
-      // 3. Keep local repository in sync
-      final success = await _memberRepository.updateMemberProfile(updated, isDemoMode: _isDemoMode);
+      final success = await _memberRepository.updateMemberProfile(updated, isDemoMode: false);
       if (success) {
         _currentMember = updated;
       }

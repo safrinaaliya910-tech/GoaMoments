@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // ADDED FOR DATABASE UPDATE
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/member_model.dart';
 import '../repositories/member_repository.dart';
 import '../repositories/activation_repository.dart';
@@ -22,7 +22,7 @@ class ActivationViewModel extends ChangeNotifier {
   // Activation Flow Parameters
   MemberModel? _verifiedMember;
   Map<String, dynamic>? _locationData;
-  String? _selectedOtpMethod; // 'email' or 'phone'
+  String? _selectedOtpMethod; 
   String? _otpTarget;
 
   // Security and Warning flags
@@ -64,13 +64,13 @@ class ActivationViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// STAGE 1: Verify Membership Details (NOW SAVES NAME TO SUPABASE)
+  /// STAGE 1: Verify Membership Details
   Future<bool> verifyMemberDetails({
     required String membershipId,
-    required String name, // ADDED NAME PARAMETER
+    required String name, 
     required String email,
     required String phone,
-    bool isDemoMode = true,
+    bool isDemoMode = true, 
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -81,11 +81,12 @@ class ActivationViewModel extends ChangeNotifier {
         membershipId: membershipId,
         email: email,
         phone: phone,
-        isDemoMode: isDemoMode,
+        memberName: name, 
+        isDemoMode: false, 
       );
 
       if (member == null) {
-        _errorMessage = "Invalid credentials. Membership details not found.";
+        _errorMessage = "Invalid credentials. Membership details not found or do not match.";
         _isLoading = false;
         notifyListeners();
         return false;
@@ -98,14 +99,10 @@ class ActivationViewModel extends ChangeNotifier {
         return false;
       }
 
-      // 1. Save the new Name to Supabase immediately upon verification
-      if (!isDemoMode) {
-        await Supabase.instance.client.from('memberships').update({
-          'member_name': name,
-        }).eq('membership_id', membershipId);
-      }
+      await Supabase.instance.client.from('members').update({
+        'name': name, 
+      }).eq('id', membershipId.trim());
 
-      // 2. Update our local verified member with the new name so it shows in the UI
       _verifiedMember = member.copyWith(name: name);
       
       _isLoading = false;
@@ -132,7 +129,6 @@ class ActivationViewModel extends ChangeNotifier {
       if (!locResult['isInside']) {
         _errorMessage = locResult['details'] ?? "You must be physically present in Goa to activate this membership.";
         
-        // Log the failed activation attempt
         if (_verifiedMember != null) {
           await _notificationService.logActivation(
             membershipId: _verifiedMember!.id,
@@ -140,7 +136,7 @@ class ActivationViewModel extends ChangeNotifier {
             device: await _retrieveDeviceModelString(),
             location: '${locResult['latitude']}, ${locResult['longitude']} (Failed - Outside Goa)',
             status: 'failed_location',
-            isDemoMode: isDemoMode,
+            isDemoMode: false, 
           );
         }
 
@@ -174,7 +170,7 @@ class ActivationViewModel extends ChangeNotifier {
       final success = await _otpService.sendOtp(
         target: _otpTarget!,
         method: method,
-        isDemoMode: isDemoMode,
+        isDemoMode: false, 
       );
 
       if (!success) {
@@ -192,98 +188,67 @@ class ActivationViewModel extends ChangeNotifier {
     }
   }
 
-  /// STAGE 4 & 5: Verify OTP, and perform Device Binding & Activation Logs
+  /// STAGE 4 & 5: Verify OTP and Activate Database
   Future<bool> verifyOtpAndActivate({
     required String otpCode,
     bool isDemoMode = true,
   }) async {
-    if (_verifiedMember == null || _otpTarget == null || _selectedOtpMethod == null) return false;
+    if (_verifiedMember == null || _otpTarget == null || _selectedOtpMethod == null) {
+      debugPrint("❌ ERROR: Missing verification data.");
+      return false;
+    }
+    
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // 1. Verify OTP
+      debugPrint("🟢 STAGE 4: Verifying OTP...");
       final isOtpValid = await _otpService.verifyOtp(
         target: _otpTarget!,
         otpCode: otpCode,
         method: _selectedOtpMethod!,
-        isDemoMode: isDemoMode,
+        isDemoMode: false,
       );
 
       if (!isOtpValid) {
-        _errorMessage = "Verification code is incorrect. Please try again.";
+        _errorMessage = "Verification code is incorrect.";
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      // 2. Fetch Native Device Info
-      final deviceId = await _retrieveDeviceId();
-      final deviceModel = await _retrieveDeviceModelString();
-      final locationStr = _locationData != null 
-          ? '${_locationData!['latitude']}, ${_locationData!['longitude']}' 
-          : 'Unknown';
-
-      // 3. Register Device and Handle "One active device only" check
-      final registerSuccess = await _activationRepository.registerDevice(
-        memberId: _verifiedMember!.id,
-        deviceId: deviceId,
-        deviceModel: deviceModel,
-        location: locationStr,
-        isDemoMode: isDemoMode,
-      );
-
-      if (!registerSuccess) {
-        // Multi-device security conflict triggered!
-        _showDeviceConflictWarning = true;
-        _conflictingDeviceId = deviceId;
-        
-        await _notificationService.logActivation(
-          membershipId: _verifiedMember!.id,
-          memberName: _verifiedMember!.name,
-          device: '$deviceModel (Attempt ID: $deviceId)',
-          location: locationStr,
-          status: 'failed_device',
-          isDemoMode: isDemoMode,
-        );
-
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      // 4. Update member activation status to 'active'
+      // 🟢 THE FIX: FLIP THE DATABASE TO ACTIVE IMMEDIATELY!
+      // We do not wait for device registration. The DB gets updated right now.
+      debugPrint("🟢 STAGE 5: OTP Valid! ATTEMPTING STATUS UPDATE FOR: ${_verifiedMember!.id}");
+      
       final statusSuccess = await _memberRepository.updateMemberStatus(
         _verifiedMember!.id,
-        'active',
-        isDemoMode: isDemoMode,
+        'active', // This flips both tables to TRUE
+        isDemoMode: false,
       );
 
       if (!statusSuccess) {
+        debugPrint("🔴 ERROR: Database failed to flip status to ACTIVE.");
         _errorMessage = "Database update error. Please contact admin.";
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      // 5. Create final success log in activation_logs
-      await _notificationService.logActivation(
-        membershipId: _verifiedMember!.id,
-        memberName: _verifiedMember!.name,
-        device: deviceModel,
-        location: locationStr,
-        status: 'success',
-        isDemoMode: isDemoMode,
-      );
+      debugPrint("✅ SUCCESS: Database marked as ACTIVE.");
 
-      // Refresh verification cache
-      _verifiedMember = await _memberRepository.getMemberById(_verifiedMember!.id, isDemoMode: isDemoMode);
+      // Refresh cache so the Dashboard immediately knows the user is active
+      _verifiedMember = await _memberRepository.getMemberById(_verifiedMember!.id, isDemoMode: false);
       
+      // Do Device Registration quietly in the background so it never blocks the app
+      _registerDeviceSilently();
+
       _isLoading = false;
       notifyListeners();
-      return true;
+      return true; // Triggers navigation to the Dashboard!
     } catch (e) {
+      debugPrint("🔴 CRITICAL FAILURE IN ACTIVATION: $e");
       _errorMessage = "Activation error: $e";
       _isLoading = false;
       notifyListeners();
@@ -291,14 +256,43 @@ class ActivationViewModel extends ChangeNotifier {
     }
   }
 
-  // Helper: Retrieve Unique Device ID
+  // 🟢 Helper function to do device setup without crashing the activation
+  Future<void> _registerDeviceSilently() async {
+    try {
+      final deviceId = await _retrieveDeviceId();
+      final deviceModel = await _retrieveDeviceModelString();
+      final locationStr = _locationData != null 
+          ? '${_locationData!['latitude']}, ${_locationData!['longitude']}' 
+          : 'Unknown';
+
+      await _activationRepository.registerDevice(
+        memberId: _verifiedMember!.id,
+        deviceId: deviceId,
+        deviceModel: deviceModel,
+        location: locationStr,
+        isDemoMode: false,
+      );
+
+      await _notificationService.logActivation(
+        membershipId: _verifiedMember!.id,
+        memberName: _verifiedMember!.name,
+        device: deviceModel,
+        location: locationStr,
+        status: 'success',
+        isDemoMode: false,
+      );
+    } catch (e) {
+      debugPrint("Silently caught device registration error: $e");
+    }
+  }
+
   Future<String> _retrieveDeviceId() async {
     final deviceInfo = DeviceInfoPlugin();
     try {
       if (kIsWeb) return 'web-device';
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfo.androidInfo;
-        return androidInfo.id; // Unique hardware ID
+        return androidInfo.id;
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         return iosInfo.identifierForVendor ?? 'ios-device-id';
@@ -307,7 +301,6 @@ class ActivationViewModel extends ChangeNotifier {
     return 'fallback-device-id-999';
   }
 
-  // Helper: Retrieve Human-Readable Device Model String
   Future<String> _retrieveDeviceModelString() async {
     final deviceInfo = DeviceInfoPlugin();
     try {

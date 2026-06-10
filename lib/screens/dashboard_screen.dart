@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/auth_viewmodel.dart';
+import '../viewmodels/activation_viewmodel.dart'; // 🟢 ADDED IMPORT
 import '../viewmodels/content_viewmodel.dart';
 import '../widgets/luxury_card.dart';
 import '../widgets/dashboard_tile.dart';
@@ -21,9 +22,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authVM = Provider.of<AuthViewModel>(context, listen: false);
+      final activationVM = Provider.of<ActivationViewModel>(context, listen: false);
       final contentVM = Provider.of<ContentViewModel>(context, listen: false);
+
+      // 🟢 THE BATON PASS: Sync the newly activated user into the persistent auth session
+      if (authVM.currentMember == null && activationVM.verifiedMember != null) {
+        debugPrint("🟢 HANDOFF: Saving activated user to persistent session.");
+        await authVM.setSession(activationVM.verifiedMember!);
+      } else if (authVM.currentMember == null) {
+        debugPrint("🟢 HANDOFF: Attempting auto-login from secure storage.");
+        await authVM.tryAutoLogin(authVM.isDemoMode);
+      }
+
       contentVM.loadBenefits(authVM.isDemoMode);
     });
   }

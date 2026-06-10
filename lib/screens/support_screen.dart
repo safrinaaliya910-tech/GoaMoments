@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../viewmodels/auth_viewmodel.dart';
-import '../viewmodels/content_viewmodel.dart';
+import 'package:url_launcher/url_launcher.dart'; // REQUIRED FOR REAL APP LAUNCHING
+
 import '../widgets/gold_button.dart';
 import '../widgets/luxury_card.dart';
 import '../widgets/luxury_glow_background.dart';
@@ -16,82 +15,22 @@ class SupportScreen extends StatefulWidget {
 }
 
 class _SupportScreenState extends State<SupportScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _subjectController = TextEditingController();
-  final _messageController = TextEditingController();
-  String _selectedContactMethod = 'WhatsApp';
+  // Official Goa Moments Contact Details
+  final String _whatsappNumber = '918807965030'; 
+  final String _phoneNumber = '+918807965030';
+  final String _emailAddress = 'Goamoments.com@gmail.com';
 
-  @override
-  void dispose() {
-    _subjectController.dispose();
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitTicket() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final authVM = Provider.of<AuthViewModel>(context, listen: false);
-    final contentVM = Provider.of<ContentViewModel>(context, listen: false);
-
-    final memberId = authVM.currentMember?.id ?? 'GUEST';
-
-    final success = await contentVM.submitConciergeTicket(
-      memberId: memberId,
-      subject: _subjectController.text.trim(),
-      message: _messageController.text.trim(),
-      contactMethod: _selectedContactMethod,
-      isDemoMode: authVM.isDemoMode,
-    );
-
-    if (mounted) {
-      if (success) {
-        _subjectController.clear();
-        _messageController.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF0C0C0C),
-            shape: RoundedRectangleBorder(
-              side: const BorderSide(color: Colors.green, width: 1.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Text(
-              'Ticket submitted. A VIP Concierge will respond shortly.',
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 13),
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF0C0C0C),
-            shape: RoundedRectangleBorder(
-              side: const BorderSide(color: Colors.redAccent, width: 1.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Text(
-              'Failed to submit ticket. Please contact support directly.',
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 13),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  void _simulateContactLaunch(String type, String detail) {
+  void _showLaunchError() {
     showDialog(
       context: context,
       builder: (ctx) => PremiumDialog(
-        title: 'LAUNCHING CONCIERGE',
-        content: 'Opening connection to: $detail',
-        icon: type == 'CALL'
-            ? Icons.phone_callback
-            : (type == 'WHATSAPP' ? Icons.chat : Icons.email_outlined),
+        title: 'CONNECTION FAILED',
+        content: 'Unable to open the requested application. Please ensure the app is installed on your device or contact us directly at $_phoneNumber.',
+        icon: Icons.error_outline,
         actions: [
           GoldButton(
-            label: 'OK',
-            height: 40,
+            label: 'DISMISS',
+            height: 44,
             onPressed: () => Navigator.pop(ctx),
           ),
         ],
@@ -99,10 +38,53 @@ class _SupportScreenState extends State<SupportScreen> {
     );
   }
 
+  // --- NATIVE LAUNCHER FUNCTIONS ---
+
+  Future<void> _launchWhatsApp() async {
+    final Uri url = Uri.parse('https://wa.me/$_whatsappNumber?text=Hello Goa Moments Concierge, I require bespoke assistance.');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      _showLaunchError();
+    }
+  }
+
+  Future<void> _launchPhone() async {
+    final Uri url = Uri.parse('tel:$_phoneNumber');
+    if (!await launchUrl(url)) {
+      _showLaunchError();
+    }
+  }
+
+  // Helper function to safely encode email subjects and bodies
+  String? _encodeQueryParameters(Map<String, String> params) {
+    return params.entries
+        .map((MapEntry<String, String> e) =>
+            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+  }
+
+  Future<void> _launchEmail() async {
+    // 🟢 UPDATED: Uses native mailto scheme with externalApplication mode
+    // This strictly breaks out of the app and opens the native Gmail/Mail composer.
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: _emailAddress,
+      query: _encodeQueryParameters(<String, String>{
+        'subject': 'VIP Concierge Request - Goa Moments',
+      }),
+    );
+
+    try {
+      if (!await launchUrl(emailLaunchUri, mode: LaunchMode.externalApplication)) {
+        _showLaunchError();
+      }
+    } catch (e) {
+      debugPrint('Error launching email: $e');
+      _showLaunchError();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final contentVM = Provider.of<ContentViewModel>(context);
-
     return Scaffold(
       body: LuxuryGlowBackground(
         glowPositions: const [Alignment.topRight, Alignment.bottomLeft],
@@ -116,7 +98,7 @@ class _SupportScreenState extends State<SupportScreen> {
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
-                'VIP CONCIERGE SUPPORT',
+                'VIP CONCIERGE',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 14,
@@ -138,21 +120,21 @@ class _SupportScreenState extends State<SupportScreen> {
                     'BESPOKE ASSISTANCE',
                     style: GoogleFonts.cormorantGaramond(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
-                    'Our dedicated luxury concierge team is available 24/7 to manage your bookings, private charters, and exclusive requests.',
+                    'Your dedicated luxury concierge team is available 24/7 to manage your bookings, arrange private charters, and fulfill exclusive requests with absolute discretion.',
                     style: GoogleFonts.outfit(
                       color: Colors.grey[450],
                       fontSize: 13.5,
-                      height: 1.5,
+                      height: 1.6,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
 
                   // Direct Communication Channels
                   Row(
@@ -161,27 +143,28 @@ class _SupportScreenState extends State<SupportScreen> {
                       _buildContactCircleButton(
                         icon: Icons.chat,
                         label: 'WHATSAPP',
-                        onTap: () => _simulateContactLaunch('WHATSAPP', '+91 999 999 9999 (WhatsApp)'),
+                        onTap: _launchWhatsApp,
                       ),
                       _buildContactCircleButton(
                         icon: Icons.phone_in_talk,
-                        label: 'CALL',
-                        onTap: () => _simulateContactLaunch('CALL', '+91 999 999 9999 (Phone)'),
+                        label: 'DIRECT CALL',
+                        onTap: _launchPhone,
                       ),
                       _buildContactCircleButton(
                         icon: Icons.mail_outline,
-                        label: 'EMAIL',
-                        onTap: () => _simulateContactLaunch('EMAIL', 'concierge@goamoments.com'),
+                        label: 'EMAIL US',
+                        onTap: _launchEmail, // 🟢 Now triggers the updated native email function
                       ),
                     ],
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 40),
 
                   const Divider(color: Colors.white10),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
+                  // Enhanced Content
                   Text(
-                    'SUBMIT CONCIERGE TICKET',
+                    'CONCIERGE PRIVILEGES',
                     style: GoogleFonts.outfit(
                       color: Colors.white,
                       fontSize: 14.5,
@@ -189,90 +172,39 @@ class _SupportScreenState extends State<SupportScreen> {
                       letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  // Ticket Submission Form
-                  Form(
-                    key: _formKey,
+                  LuxuryCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        LuxuryCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('SUBJECT'),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _subjectController,
-                                style: GoogleFonts.outfit(color: Colors.white, fontSize: 13.5),
-                                validator: (val) => val == null || val.trim().isEmpty ? 'Subject is required' : null,
-                                decoration: _buildInputDecoration('e.g. Yacht Charter Booking Request'),
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildLabel('MESSAGE DETAILS'),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _messageController,
-                                maxLines: 4,
-                                style: GoogleFonts.outfit(color: Colors.white, fontSize: 13.5),
-                                validator: (val) => val == null || val.trim().isEmpty ? 'Message details required' : null,
-                                decoration: _buildInputDecoration('Describe your bespoke request...'),
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildLabel('PREFERRED CONTACT METHOD'),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: ['WhatsApp', 'Call', 'Email'].map((method) {
-                                  final isSelected = _selectedContactMethod == method;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
-                                    child: ChoiceChip(
-                                      label: Text(
-                                        method,
-                                        style: GoogleFonts.outfit(
-                                          color: isSelected ? Colors.black : Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 11.5,
-                                        ),
-                                      ),
-                                      selected: isSelected,
-                                      selectedColor: const Color(0xFFCF9E2C),
-                                      backgroundColor: const Color(0xFF0C0C0C),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        side: BorderSide(
-                                          color: isSelected ? const Color(0xFFCF9E2C) : Colors.grey[900]!,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          setState(() {
-                                            _selectedContactMethod = method;
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  );
-                                }).toList(),
-                              )
-                            ],
-                          ),
+                        _buildServiceItem(
+                          icon: Icons.sailing,
+                          title: 'Private Yacht Charters',
+                          description: 'Sail the Arabian Sea on fully-staffed luxury vessels tailored to your itinerary.',
                         ),
-                        const SizedBox(height: 36),
-
-                        GoldButton(
-                          label: 'SUBMIT TICKET',
-                          isLoading: contentVM.isLoading,
-                          onPressed: _submitTicket,
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          child: Divider(color: Colors.white10, height: 1),
                         ),
-                        const SizedBox(height: 24),
+                        _buildServiceItem(
+                          icon: Icons.restaurant,
+                          title: 'Bespoke Culinary Journeys',
+                          description: 'Priority reservations and private chef experiences at Goa\'s most exclusive dining venues.',
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          child: Divider(color: Colors.white10, height: 1),
+                        ),
+                        _buildServiceItem(
+                          icon: Icons.directions_car,
+                          title: 'Chauffeur & Transfers',
+                          description: 'Seamless airport transfers and dedicated premium vehicles at your disposal.',
+                        ),
                       ],
                     ),
-                  )
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -282,41 +214,45 @@ class _SupportScreenState extends State<SupportScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.outfit(
-        color: const Color(0xFFCF9E2C),
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.5,
-      ),
-    );
-  }
-
-  InputDecoration _buildInputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: GoogleFonts.outfit(color: Colors.grey[650], fontSize: 13),
-      filled: true,
-      fillColor: const Color(0xFF0C0C0C),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[900]!, width: 1.0),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFFCF9E2C), width: 1.2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
-      ),
+  Widget _buildServiceItem({required IconData icon, required String title, required String description}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFCF9E2C).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFFCF9E2C), size: 22),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: GoogleFonts.outfit(
+                  color: Colors.grey[500],
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -338,11 +274,18 @@ class _SupportScreenState extends State<SupportScreen> {
               color: const Color(0xFFCF9E2C).withOpacity(0.2),
               width: 1.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFCF9E2C).withOpacity(0.05),
+                blurRadius: 10,
+                spreadRadius: 1,
+              )
+            ],
           ),
           child: Column(
             children: [
-              Icon(icon, color: const Color(0xFFCF9E2C), size: 26),
-              const SizedBox(height: 10),
+              Icon(icon, color: const Color(0xFFCF9E2C), size: 28),
+              const SizedBox(height: 12),
               Text(
                 label,
                 style: GoogleFonts.outfit(

@@ -20,7 +20,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   void initState() {
     super.initState();
     
-    // Initialize the background video
     _videoController = VideoPlayerController.asset('assets/videos/goa.mp4')
       ..initialize().then((_) {
         if (mounted) {
@@ -28,8 +27,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             _isVideoInitialized = true;
           });
         }
-        _videoController.setVolume(0.0); // Mute background video
-        _videoController.setLooping(true); // Loop infinitely
+        _videoController.setVolume(0.0);
+        _videoController.setLooping(true);
         _videoController.play();
       }).catchError((error) {
         debugPrint("Error loading background video: $error");
@@ -49,11 +48,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Background Video (Anchored Right to perfectly frame the walking couple)
           if (_isVideoInitialized)
             FittedBox(
               fit: BoxFit.cover,
-              alignment: Alignment.centerRight, // <--- Keeps the couple on-screen
+              alignment: Alignment.centerRight,
               child: SizedBox(
                 width: _videoController.value.size.width,
                 height: _videoController.value.size.height,
@@ -61,28 +59,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
             )
           else
-            Container(color: Colors.black), // Fallback while video loads
+            Container(color: Colors.black),
 
-          // 2. Cinematic Gradient Overlay
-          // Dark at top for text, clear in middle for the couple, dark at bottom for buttons
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.65), // Top: Dark enough for white text
-                  Colors.black.withValues(alpha: 0.15), // Middle: Clear for the video/couple
-                  Colors.black.withValues(alpha: 0.85), // Bottom-Mid: Darkens behind buttons
-                  const Color(0xFF050505),              // Bottom: Solid black
+                  Colors.black.withValues(alpha: 0.65), 
+                  Colors.black.withValues(alpha: 0.15), 
+                  Colors.black.withValues(alpha: 0.85), 
+                  const Color(0xFF050505),              
                 ],
                 stops: const [0.0, 0.45, 0.80, 1.0],
               ),
             ),
           ),
 
-          // 3. Foreground Content
-          // Anti-Overflow Architecture for small screens
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -97,18 +91,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Spacer(flex: 2), // Pushes logo down gracefully
+                            const Spacer(flex: 2), 
                             
-                            // Brand Crest Logo
                             Image.asset(
-                              'assets/images/goa_moments_logo.png', // Updated exactly as requested
+                              'assets/images/goa_moments_logo.png',
                               height: 90,
                               fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) => const SizedBox(height: 90),
                             ),
                             const SizedBox(height: 24.0),
                             
-                            // Main Title
                             Text(
                               'GOA MOMENTS',
                               style: GoogleFonts.cormorantGaramond(
@@ -122,7 +114,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             ),
                             const SizedBox(height: 12.0),
                             
-                            // Subtitle
                             Text(
                               'THE LUXURY MEMBERSHIP CLUB',
                               style: GoogleFonts.outfit(
@@ -135,7 +126,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             ),
                             const SizedBox(height: 24.0),
                             
-                            // Description Text
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 12.0),
                               child: Text(
@@ -150,9 +140,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               ),
                             ),
                             
-                            const Spacer(flex: 5), // Drives buttons to the bottom of the screen
+                            const Spacer(flex: 5),
 
-                            // 4. CTA Action Buttons
                             GoldButton(
                               label: 'ACTIVATE MEMBERSHIP',
                               onPressed: () {
@@ -165,14 +154,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               label: 'ALREADY ACTIVATED? SIGN IN',
                               isSecondary: true,
                               onPressed: () {
-                                Navigator.pushNamed(context, '/otp-verification'); 
+                                // Changed route: Needs to ask for ID first before OTP
+                                Navigator.pushNamed(context, '/signin'); 
                               },
                             ),
                             const SizedBox(height: 20.0),
                             
                             TextButton(
                               onPressed: () {
-                                Navigator.pushNamed(context, '/benefits', arguments: true);
+                               // OLD (Wrong):
+// Navigator.pushNamed(context, '/benefits', arguments: true);
+
+// NEW (Correct):
+Navigator.pushNamed(
+  context, 
+  '/benefits', 
+  arguments: {
+    'category': 'ALL', 
+    'isGuestMode': true // Pass it as a Map!
+  }
+);
                               },
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),

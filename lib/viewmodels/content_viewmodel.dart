@@ -31,27 +31,26 @@ class ContentViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load luxury benefits from repository
   Future<void> loadBenefits(bool isDemoMode) async {
-    _isLoading = true;
-    notifyListeners();
-
-    _benefits = await _contentRepository.getBenefits(isDemoMode: isDemoMode);
-
+  _isLoading = true;
+  notifyListeners();
+  try {
+    final data = await _contentRepository.getBenefits(isDemoMode: isDemoMode);
+    
+    // --- ADD THIS LINE TO DEBUG ---
+    debugPrint("DEBUG: Benefits received from Supabase: ${data.length} items");
+    for (var b in data) {
+      debugPrint("DEBUG: Benefit Title: ${b.title}, Category: ${b.category}");
+    }
+    
+    _benefits = data;
+  } catch (e) {
+    debugPrint("Error loading benefits: $e");
+  } finally {
     _isLoading = false;
     notifyListeners();
   }
-
-  /// Load partners list from repository
-  Future<void> loadServicePartners(bool isDemoMode) async {
-    _isLoading = true;
-    notifyListeners();
-
-    _partners = await _contentRepository.getServicePartners(isDemoMode: isDemoMode);
-
-    _isLoading = false;
-    notifyListeners();
-  }
+}
 
   /// Submit a support ticket to the VIP Concierge Desk
   Future<bool> submitConciergeTicket({

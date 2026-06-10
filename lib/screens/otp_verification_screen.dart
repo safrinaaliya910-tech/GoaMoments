@@ -57,17 +57,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     if (member == null) return;
 
-    bool success = false;
-
-    // SUPABASE NATIVE OTP INTEGRATION
-    if (method == 'email') {
-      success = await authVM.sendEmailOTP(member.email);
-    } else {
-      success = await activationVM.triggerOtpCode(
-        method: method,
-        isDemoMode: authVM.isDemoMode,
-      );
-    }
+    // 🟢 FIXED: We route ALL activation OTPs (Email and Phone) to the ActivationViewModel
+    bool success = await activationVM.triggerOtpCode(
+      method: method,
+      isDemoMode: authVM.isDemoMode,
+    );
 
     if (success) {
       setState(() {
@@ -108,20 +102,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     if (member == null) return;
 
-    bool success = false;
-
-    // SUPABASE NATIVE VERIFICATION
-    if (_selectedMethod == 'email') {
-      success = await authVM.verifyEmailOTP(member.email, otpCode, member);
-    } else {
-      success = await activationVM.verifyOtpAndActivate(
-        otpCode: otpCode,
-        isDemoMode: authVM.isDemoMode,
-      );
-    }
+    // 🟢 FIXED: We route ALL verification (Email and Phone) to the ActivationViewModel
+    // This guarantees the database update logic runs before changing screens!
+    bool success = await activationVM.verifyOtpAndActivate(
+      otpCode: otpCode,
+      isDemoMode: authVM.isDemoMode,
+    );
 
     if (success) {
-      // Session is already set inside AuthViewModel upon success
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(context, '/activation-success', (route) => false);
       }
@@ -234,16 +222,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             subtitle: _maskEmail(member.email),
                             onTap: () => _sendCode('email'),
                           ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.0),
-                            child: Divider(color: Colors.white10),
-                          ),
-                          _buildMethodTile(
-                            icon: Icons.phone_android_outlined,
-                            title: 'Mobile Phone OTP',
-                            subtitle: _maskPhone(member.phone),
-                            onTap: () => _sendCode('phone'),
-                          ),
+                          
                         ],
                       ),
                     ),

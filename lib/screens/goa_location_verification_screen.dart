@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/activation_viewmodel.dart';
-import '../viewmodels/auth_viewmodel.dart';
-import '../services/location_service.dart';
 import '../widgets/gold_button.dart';
 import '../widgets/luxury_card.dart';
 import '../widgets/luxury_glow_background.dart';
@@ -19,9 +17,13 @@ class _GoaLocationVerificationScreenState extends State<GoaLocationVerificationS
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  
   bool _isChecking = false;
   bool _checked = false;
   bool _passed = false;
+  
+  // Local state for the Simulator Toggle
+  bool _useSimulator = false;
 
   @override
   void initState() {
@@ -49,10 +51,9 @@ class _GoaLocationVerificationScreenState extends State<GoaLocationVerificationS
     });
 
     final activationVM = Provider.of<ActivationViewModel>(context, listen: false);
-    final authVM = Provider.of<AuthViewModel>(context, listen: false);
 
-    // This calls the location logic
-    final success = await activationVM.verifyGoaLocation(isDemoMode: authVM.isDemoMode);
+    // Call the logic using the local Simulator toggle state
+    final success = await activationVM.verifyGoaLocation(isDemoMode: _useSimulator);
 
     if (mounted) {
       setState(() {
@@ -72,9 +73,6 @@ class _GoaLocationVerificationScreenState extends State<GoaLocationVerificationS
 
   @override
   Widget build(BuildContext context) {
-    final authVM = Provider.of<AuthViewModel>(context);
-    final locationService = Provider.of<LocationService>(context, listen: false);
-
     return Scaffold(
       body: LuxuryGlowBackground(
         glowPositions: const [Alignment.topRight, Alignment.bottomLeft],
@@ -171,7 +169,7 @@ class _GoaLocationVerificationScreenState extends State<GoaLocationVerificationS
                     ),
                   ),
 
-                // Demo Switch (Only visible if you are in development/demo mode)
+                // Simulator Switch
                 const SizedBox(height: 20),
                 LuxuryCard(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -180,12 +178,12 @@ class _GoaLocationVerificationScreenState extends State<GoaLocationVerificationS
                     children: [
                       Text('Simulate Inside Goa:', style: GoogleFonts.outfit(color: Colors.grey[400])),
                       Switch(
-                        value: locationService.mockIsInsideGoa,
+                        value: _useSimulator,
                         activeColor: const Color(0xFFCF9E2C),
                         onChanged: (val) {
                           setState(() {
-                            locationService.setMockLocationState(val);
-                            _checked = false;
+                            _useSimulator = val;
+                            _checked = false; // Reset the UI if they toggle the switch
                           });
                         },
                       ),
